@@ -1,5 +1,7 @@
 package com.gmail.taikingyo.nn;
 
+import java.util.function.DoubleFunction;
+
 public class Perceptron {
 	private int layerN;		//レイヤー数
 	private int[] unitN;	//ユニット数
@@ -8,9 +10,56 @@ public class Perceptron {
 	private double[][] delta;
 	private double err;
 	
+	private DoubleFunction<Double> activate;
+	private DoubleFunction<Double> dActivate;
+	
+	//シグモイド関数
+	public static final DoubleFunction<Double> Sigmoid = new DoubleFunction<Double>() {
+
+		@Override
+		public Double apply(double value) {
+			// TODO Auto-generated method stub
+			return 1 / (1 + Math.exp(-value));
+		}};
+	
+	//シグモイド関数の導関数
+	public static final DoubleFunction<Double> DSigmoid = new DoubleFunction<Double>() {
+
+		@Override
+		public Double apply(double value) {
+			// TODO Auto-generated method stub
+			return value * (1 - value);
+		}};
+	
+	//ランプ関数
+	public static final DoubleFunction<Double> ReLU = new DoubleFunction<Double>() {
+
+		@Override
+		public Double apply(double value) {
+			// TODO Auto-generated method stub
+			return Math.max(value, 0);
+		}
+	};
+	
+	//ランプ関数の導関数
+	public static final DoubleFunction<Double> DReLU = new DoubleFunction<Double>() {
+
+		@Override
+		public Double apply(double value) {
+			// TODO Auto-generated method stub
+			return (value > 0)? 1.0 : 0;
+		}
+	};
+	
 	public Perceptron(int[] unitN) {
+		this(unitN, Sigmoid, DSigmoid);
+	}
+	
+	public Perceptron(int[] unitN, DoubleFunction<Double> activate, DoubleFunction<Double> dActivate) {
 		this.unitN = unitN;
 		layerN = unitN.length;
+		this.activate = activate;
+		this.dActivate = dActivate;
 		
 		unit = new double[layerN][];
 		delta = new double[layerN - 1][];	//中間層＋出力層分
@@ -35,11 +84,6 @@ public class Perceptron {
 			}
 		}
 	}
-	
-	public static double sigmoid(double x) {
-		return 1 / (1 + Math.exp(-x));
-	}
-	
 	
 	public static double[] softmax(double[] x) {
 		double[] y = new double[x.length];
@@ -69,7 +113,7 @@ public class Perceptron {
 				for(int j = 0; j < unitN[l] + 1; j++) {	//pre neuron
 					s += weight[l][i][j] * unit[l][j];
 				}
-				unit[l + 1][i] = sigmoid(s);
+				unit[l + 1][i] = activate.apply(s);
 			}
 		}
 		
@@ -83,7 +127,7 @@ public class Perceptron {
 		}
 		//多クラス分類ならsoftmax、二分ならsigmoid関数
 		if(unitN[layerN - 1] != 1) unit[layerN - 1] = softmax(out);
-		else unit[layerN - 1][0] = sigmoid(out[0]);
+		else unit[layerN - 1][0] = Sigmoid.apply(out[0]);
 	}
 	
 	private void backPropagate(double[] t) {
@@ -97,7 +141,7 @@ public class Perceptron {
 		//中間層の誤差計算
 		for(int l = layerN - 2; l > 0; l--) {			//layer
 			for(int i = 0; i < unitN[l]; i++) {			//pre neuron
-				double df = unit[l][i] * (1.0 - unit[l][i]);
+				double df = dActivate.apply(unit[l][i]);
 				double s = 0.0;
 				for(int j = 0; j < unitN[l + 1]; j++) {	//post neuron
 					s += delta[l][j] * weight[l][j][i];
@@ -152,4 +196,6 @@ public class Perceptron {
 		
 		return idx;
 	}
+	
+
 }
