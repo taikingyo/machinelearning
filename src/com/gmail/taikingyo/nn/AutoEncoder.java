@@ -1,7 +1,6 @@
 package com.gmail.taikingyo.nn;
 
 import java.util.Arrays;
-import java.util.function.DoubleFunction;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
