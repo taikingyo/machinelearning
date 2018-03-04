@@ -1,6 +1,9 @@
 package com.gmail.taikingyo.nn;
 
+import java.util.Arrays;
 import java.util.function.DoubleFunction;
+import java.util.function.IntConsumer;
+import java.util.stream.IntStream;
 
 public class Perceptron {
 	private int layerN;		//レイヤー数
@@ -8,7 +11,8 @@ public class Perceptron {
 	private double[][] unit;
 	private double[][][] weight;
 	private double[][] delta;
-	private double err;
+	
+	private int paraN;		//並列数
 	
 	private DoubleFunction<Double> activate;
 	private DoubleFunction<Double> dActivate;
@@ -52,14 +56,15 @@ public class Perceptron {
 	};
 	
 	public Perceptron(int[] unitN) {
-		this(unitN, Sigmoid, DSigmoid);
+		this(unitN, Sigmoid, DSigmoid, 4);
 	}
 	
-	public Perceptron(int[] unitN, DoubleFunction<Double> activate, DoubleFunction<Double> dActivate) {
+	public Perceptron(int[] unitN, DoubleFunction<Double> activate, DoubleFunction<Double> dActivate, int paraN) {
 		this.unitN = unitN;
 		layerN = unitN.length;
 		this.activate = activate;
 		this.dActivate = dActivate;
+		this.paraN = paraN;
 		
 		unit = new double[layerN][];
 		delta = new double[layerN - 1][];	//中間層＋出力層分
@@ -85,6 +90,36 @@ public class Perceptron {
 		}
 	}
 	
+	public Perceptron(double[][][] weight, DoubleFunction<Double> activate, DoubleFunction<Double> dActivate, int paraN) {
+		this.weight = weight;
+		this.activate = activate;
+		this.dActivate = dActivate;
+		this.paraN = paraN;
+		
+		layerN = weight.length + 1;
+		unitN = new int[layerN];
+		unit = new double[layerN][];
+		delta = new double[layerN - 1][];
+		for(int l = 0; l < layerN - 1; l++) unitN[l] = weight[l][0].length - 1;
+		unitN[layerN - 1] = weight[layerN - 2].length;
+		
+		for(int l = 0; l < layerN - 1; l++) {
+			unit[l] = new double[unitN[l] + 1];
+			unit[l][unitN[l]] = 1.0;
+			delta[l] = new double[unitN[l + 1]];
+		}
+		unit[layerN - 1] = new double[unitN[layerN - 1]];
+	}
+	
+	public static double[][] oneHotVector(int[] data) {
+		double[][] vec = new double[data.length][10];
+		for(int i = 0; i < data.length; i++) {
+			Arrays.fill(vec[i], 0.0);
+			vec[i][data[i]] = 1.0;
+		}
+		return vec;
+	}
+	
 	public static double[] softmax(double[] x) {
 		double[] y = new double[x.length];
 		double s = 0.0;
@@ -101,30 +136,38 @@ public class Perceptron {
 		return y;
 	}
 	
+	private void loop(int n, IntConsumer body) {
+		int unitLength = (int) Math.ceil((double)n / paraN);
+		IntStream.range(0, paraN).parallel().forEach(i -> {
+			int start = i * unitLength;
+			int end = Math.min((i + 1) * unitLength, n);
+			for(int j = start; j < end; j++) body.accept(j);
+		});
+	}
+	
 	public void forward(double[] x) {
 		//入力層のセット
 		System.arraycopy(x, 0, unit[0], 0, x.length);
 		
 		//中間層の計算
-		for(int l = 0; l < layerN - 2; l++) {			//layer
-			for(int i = 0; i < unitN[l + 1]; i++) {		//post neuron
+		for(int l = 0; l < layerN - 2; l++) {
+			final int layer = l;
+			loop(unitN[l + 1], i -> {
 				double s = 0.0;
-				
-				for(int j = 0; j < unitN[l] + 1; j++) {	//pre neuron
-					s += weight[l][i][j] * unit[l][j];
-				}
-				unit[l + 1][i] = activate.apply(s);
-			}
+				for(int j = 0; j < unitN[layer] + 1; j++) s += weight[layer][i][j] * unit[layer][j];
+				unit[layer + 1][i] = activate.apply(s);
+			});
 		}
 		
 		//出力層の計算
 		double[] out = new double[unitN[layerN - 1]];
-		for(int i = 0; i < unitN[layerN - 1]; i++) {			//post neuron
+		loop(unitN[layerN - 1], i -> {
 			out[i] = 0.0;
-			for(int j = 0; j < unitN[layerN - 2] + 1; j++) {	//pre neuron
+			for(int j = 0; j < unitN[layerN - 2] + 1; j++) {
 				out[i] += weight[layerN - 2][i][j] * unit[layerN - 2][j];
 			}
-		}
+		});
+		
 		//多クラス分類ならsoftmax、二分ならsigmoid関数
 		if(unitN[layerN - 1] != 1) unit[layerN - 1] = softmax(out);
 		else unit[layerN - 1][0] = Sigmoid.apply(out[0]);
@@ -135,43 +178,35 @@ public class Perceptron {
 		for(int i = 0; i < unitN[layerN - 1]; i++) {
 			double e = t[i] - unit[layerN - 1][i];
 			delta[layerN - 2][i] = e;
-			err += e * e;
 		}
 		
 		//中間層の誤差計算
-		for(int l = layerN - 2; l > 0; l--) {			//layer
-			for(int i = 0; i < unitN[l]; i++) {			//pre neuron
-				double df = dActivate.apply(unit[l][i]);
+		for(int l = layerN - 2; l > 0; l--) {
+			final int layer = l;
+			loop(unitN[l], i -> {
+				double df = dActivate.apply(unit[layer][i]);
 				double s = 0.0;
-				for(int j = 0; j < unitN[l + 1]; j++) {	//post neuron
-					s += delta[l][j] * weight[l][j][i];
-				}
-				delta[l - 1][i] = df * s;
-			}
+				for(int j = 0; j < unitN[layer + 1]; j++) s += delta[layer][j] * weight[layer][j][i];
+				delta[layer - 1][i] = df * s;
+			});
 		}
 	}
 	
 	private void update(double rate) {
-		for(int l = layerN - 2; l >= 0; l--) {		//layer
-			for(int i = 0; i < unitN[l + 1]; i++) {	//post neuron
-				for(int j = 0; j < unitN[l] + 1; j++) {	//pre neuron
-					weight[l][i][j] += rate * delta[l][i] * unit[l][j];	//入力層分の有無でdeltaとunitのカウンタにズレ
-				}
-			}
+		for(int l = layerN - 2; l >= 0; l--) {
+			final int layer = l;
+			loop(unitN[l + 1], i -> {
+				for(int j = 0; j < unitN[layer] + 1; j++) weight[layer][i][j] += rate * delta[layer][i] * unit[layer][j];
+			});
 		}
 	}
 	
-	public void train(double[][] data, double[] [] teach, int trainN, double learnRate) {
+	public void train(double[][] data, double[][] teach, int trainN, double learnRate) {
 		for(int t = 0; t < trainN; t++) {
-			err = 0.0;
 			for(int p = 0; p < data.length; p++) {
 				forward(data[p]);
 				backPropagate(teach[p]);
 				update(learnRate);
-			}
-			
-			if(t % 1000 == 0) {
-				System.out.printf("train: %5d err: %f\n", t, err / data.length / unitN[layerN - 1]);
 			}
 		}
 	}
@@ -196,6 +231,4 @@ public class Perceptron {
 		
 		return idx;
 	}
-	
-
 }
