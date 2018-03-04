@@ -143,4 +143,14 @@ public class AutoEncoder {
 		System.arraycopy(z, 0, out, 0, n);
 		return out;
 	}
+	
+	public double[][] getWeight() {
+		double[][] param = new double[m][n + 1];
+		for(int j = 0; j < m; j++) {
+			System.arraycopy(weight[j], 0, param[j], 0, n);
+			param[j][n] = bias1[j];
+		}
+		
+		return param;
+	}
 }
