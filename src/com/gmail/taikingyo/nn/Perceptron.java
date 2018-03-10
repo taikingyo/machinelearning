@@ -10,7 +10,8 @@ public class Perceptron {
 	private int[] unitN;	//ユニット数
 	private double[][] unit;
 	private double[][][] weight;
-	private double[][] delta;
+	private double[][] errSignal;	//誤差信号
+	private double[][][] grad;		//勾配
 	
 	private int paraN;		//並列数
 	
@@ -67,16 +68,19 @@ public class Perceptron {
 		this.paraN = paraN;
 		
 		unit = new double[layerN][];
-		delta = new double[layerN - 1][];	//中間層＋出力層分
 		weight = new double[layerN - 1][][];
+		
+		errSignal = new double[layerN - 1][];
+		grad = new double[layerN - 1][][];
 		
 		//データ形式の初期化
 		//出力層以外はバイアス用ユニット（1固定）追加
 		for(int l = 0; l < layerN - 1; l++) {
 			unit[l] = new double[unitN[l] + 1];
 			unit[l][unitN[l]] = 1.0;
-			delta[l] = new double[unitN[l + 1]];
 			weight[l] = new double[unitN[l + 1]][unitN[l] + 1];
+			errSignal[l] = new double[unitN[l + 1]];
+			grad[l] = new double[unitN[l + 1]][unitN[l] + 1];
 		}
 		unit[layerN - 1] = new double[unitN[layerN - 1]];
 		
@@ -99,14 +103,18 @@ public class Perceptron {
 		layerN = weight.length + 1;
 		unitN = new int[layerN];
 		unit = new double[layerN][];
-		delta = new double[layerN - 1][];
+		
+		errSignal = new double[layerN - 1][];
+		grad = new double[layerN - 1][][];
+		
 		for(int l = 0; l < layerN - 1; l++) unitN[l] = weight[l][0].length - 1;
 		unitN[layerN - 1] = weight[layerN - 2].length;
 		
 		for(int l = 0; l < layerN - 1; l++) {
 			unit[l] = new double[unitN[l] + 1];
 			unit[l][unitN[l]] = 1.0;
-			delta[l] = new double[unitN[l + 1]];
+			errSignal[l] = new double[unitN[l + 1]];
+			grad[l] = new double[unitN[l + 1]][unitN[l] + 1];
 		}
 		unit[layerN - 1] = new double[unitN[layerN - 1]];
 	}
@@ -177,7 +185,8 @@ public class Perceptron {
 		//出力層の誤差計算
 		for(int i = 0; i < unitN[layerN - 1]; i++) {
 			double e = t[i] - unit[layerN - 1][i];
-			delta[layerN - 2][i] = e;
+			errSignal[layerN - 2][i] = e;
+			for(int j = 0; j < unitN[layerN - 2] + 1; j++) grad[layerN - 2][i][j] += errSignal[layerN - 2][i] * unit[layerN - 2][j];
 		}
 		
 		//中間層の誤差計算
@@ -186,8 +195,9 @@ public class Perceptron {
 			loop(unitN[l], i -> {
 				double df = dActivate.apply(unit[layer][i]);
 				double s = 0.0;
-				for(int j = 0; j < unitN[layer + 1]; j++) s += delta[layer][j] * weight[layer][j][i];
-				delta[layer - 1][i] = df * s;
+				for(int j = 0; j < unitN[layer + 1]; j++) s += errSignal[layer][j] * weight[layer][j][i];
+				errSignal[layer - 1][i] = df * s;
+				for(int j = 0; j < unitN[layer - 1] + 1; j++) grad[layer - 1][i][j] += errSignal[layer - 1][i] * unit[layer - 1][j];
 			});
 		}
 	}
@@ -196,18 +206,41 @@ public class Perceptron {
 		for(int l = layerN - 2; l >= 0; l--) {
 			final int layer = l;
 			loop(unitN[l + 1], i -> {
-				for(int j = 0; j < unitN[layer] + 1; j++) weight[layer][i][j] += rate * delta[layer][i] * unit[layer][j];
+				for(int j = 0; j < unitN[layer] + 1; j++) weight[layer][i][j] += rate * grad[layer][i][j];
 			});
 		}
 	}
 	
-	public void train(double[][] data, double[][] teach, int trainN, double learnRate) {
-		for(int t = 0; t < trainN; t++) {
-			for(int p = 0; p < data.length; p++) {
+	private void initGrad() {
+		for(double[][] dd : grad) {
+			for(double[] d : dd) Arrays.fill(d, 0);
+		}
+	}
+	
+	public void train(double[][] data, double[][] teach, int epoch, double learnRate) {
+		int pattern = data.length;
+		
+		for(int e = 0; e < epoch; e++) {
+			for(int p = 0; p < pattern; p++) {
+				initGrad();
 				forward(data[p]);
 				backPropagate(teach[p]);
 				update(learnRate);
 			}
+		}
+	}
+	
+	public void train(double[][] data, double[][] teach, int epoch, int batchSize, double learnRate) {
+		int pattern = data.length;
+		
+		for(int e = 0; e < epoch * pattern / batchSize; e++) {
+			initGrad();
+			for(int i = 0; i < batchSize; i++) {
+				int index = (e * batchSize + i) % pattern;
+				forward(data[index]);
+				backPropagate(teach[index]);
+			}
+			update(learnRate);
 		}
 	}
 	
