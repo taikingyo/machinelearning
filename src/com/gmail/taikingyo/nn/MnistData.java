@@ -34,7 +34,7 @@ public class MnistData {
 	}
 	
 	//MNISTデータのstartからn個のイメージを取得
-	public static double[][] readImage(String path, int start, int n) {
+	public static float[][] readImage(String path, int start, int n) {
 		BufferedInputStream bis;
 		try {
 			bis = new BufferedInputStream(new FileInputStream(path));
@@ -44,7 +44,7 @@ public class MnistData {
 			int width = readInt(bis);
 			int size = height * width;
 			int len = Math.min(num - start, n);
-			double[][] img = new double[len][size];
+			float[][] img = new float[len][size];
 			byte[][] imgData = new byte[len][size];
 			
 			skip(bis, start * size);
@@ -52,7 +52,7 @@ public class MnistData {
 			bis.close();
 			
 			for(int i = 0; i < len; i++) {
-				for(int j = 0; j < size; j++) img[i][j] = (imgData[i][j] & 0xFF) / 255.0;	//符号をつけ値の範囲を変換
+				for(int j = 0; j < size; j++) img[i][j] = (imgData[i][j] & 0xFF) / 255.0f;	//符号をつけ値の範囲を変換
 			}
 			
 			return img;

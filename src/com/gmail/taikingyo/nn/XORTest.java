@@ -2,17 +2,17 @@ package com.gmail.taikingyo.nn;
 
 public class XORTest {
 	static int trainN = 10000;
-	static double learnRate = 0.1;
+	static float learnRate = 0.1f;
 	
-	static double[][] trainData = {
+	static float[][] trainData = {
 			{0, 0}, {0, 1}, {1, 0}, {1, 1}
 	};
 	
-	static double[][] teachData = {
+	static float[][] teachData = {
 			{0}, {1}, {1}, {0}
 	};
 	
-	static double[][] testData = {
+	static float[][] testData = {
 			{0, 0}, {0, 1}, {1, 0}, {1, 1}
 	};
 
@@ -23,10 +23,10 @@ public class XORTest {
 		p.train(trainData, teachData, trainN, learnRate);
 		
 		System.out.println("test");
-		for(double[] in : testData) {
+		for(float[] in : testData) {
 			for(double d : in) System.out.printf("%.0f  ", d);
 			p.forward(in);
-			double[] out = p.output();
+			float[] out = p.output();
 			System.out.printf(" ans %.2f\n", out[0]);
 		}
 	}

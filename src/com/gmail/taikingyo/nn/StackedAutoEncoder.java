@@ -15,18 +15,18 @@ public class StackedAutoEncoder {
 		}
 	}
 	
-	public void preTrain(double[][] data, int trainN, int batchSize, double learnRate, double noiseRate, double weightDecay) {
-		double[][] trainData = new double[data.length][];
+	public void preTrain(float[][] data, int epoch, int batchSize, float learnRate, float noiseRate, float weightDecay) {
+		float[][] trainData = new float[data.length][];
 		
 		for(int i = 0; i < aes.length; i++) {
 			if(i == 0) trainData = data;
 			else for(int j = 0; j < data.length; j++) trainData[j] = aes[i].test(trainData[j]);
-			aes[i].train(trainData, trainN, batchSize, learnRate, noiseRate, weightDecay);
+			aes[i].train(trainData, epoch, batchSize, learnRate, noiseRate, weightDecay);
 		}
 	}
 	
-	public double[][][] getWeight() {
-		double[][][] weight = new double[aes.length][][];
+	public float[][][] getWeight() {
+		float[][][] weight = new float[aes.length][][];
 		for(int l = 0; l < weight.length; l++) weight[l] = aes[l].getWeight();
 		
 		return weight;

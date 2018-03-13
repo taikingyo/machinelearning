@@ -2,19 +2,19 @@ package com.gmail.taikingyo.nn;
 
 public class SAETest {
 	Perceptron p;
-	double[][] trainData;
-	double[][] trainLabel;
+	float[][] trainData;
+	float[][] trainLabel;
 	int[] struct = {784, 400, 400, 10};
 
 	//並列数、データ数、トレーニング回数は開発PCの性能上、低く抑えています
 	int paraN = 4;			//コア数次第で任意
 	int trainDataN = 20000;	//できればフルセット60000
-	int trainN = 1;			//10回程度？
+	int epoch = 1;			//10回程度？
 	
 	int batchSize = 10;
-	double learnRate = 0.03;
-	double noiseRate = 0.3;
-	double weightDecay = 0.0002;
+	float learnRate = 0.03f;
+	float noiseRate = 0.3f;
+	float weightDecay = 0.0002f;
 	
 	public SAETest() {
 		trainData = MnistData.readImage(MnistData.TRAIN_IMAGE, 0, trainDataN);
@@ -28,7 +28,7 @@ public class SAETest {
 	void preTrain() {
 		System.out.println("pre training...");
 		StackedAutoEncoder sae = new StackedAutoEncoder(struct, paraN);
-		sae.preTrain(trainData, trainN, batchSize, learnRate, noiseRate, weightDecay);
+		sae.preTrain(trainData, epoch, batchSize, learnRate, noiseRate, weightDecay);
 		p = new Perceptron(sae.getWeight(), Perceptron.Sigmoid, Perceptron.DSigmoid, paraN);
 	}
 	
@@ -39,14 +39,14 @@ public class SAETest {
 			trainData = MnistData.readImage(MnistData.TRAIN_IMAGE, i, size);
 			int[] label = MnistData.readLabel(MnistData.TRAIN_LABEL, i, size);
 			trainLabel = Perceptron.oneHotVector(label);
-			p.train(trainData, trainLabel, trainN, learnRate);
+			p.train(trainData, trainLabel, epoch, learnRate);
 			System.out.printf("tune %5d / 60000\n", i + size);
 			test();
 		}
 	}
 	
 	void test() {
-		double[][] testData = MnistData.readImage(MnistData.TEST_IMAGE, 0, 10000);
+		float[][] testData = MnistData.readImage(MnistData.TEST_IMAGE, 0, 10000);
 		int[] testLabel = MnistData.readLabel(MnistData.TEST_LABEL, 0, 10000);
 		
 		int a = 0;

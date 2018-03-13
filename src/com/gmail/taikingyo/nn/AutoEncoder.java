@@ -6,16 +6,16 @@ import java.util.stream.IntStream;
 
 public class AutoEncoder {
 	private int n,m;		//入力層・中間層ユニット数
-	private double[] x;		//入力層
-	private double[] nx;	//ノイズ付加入力層
-	private double[] y;		//中間層
-	private double[] z;		//出力層
-	private double[][] weight;
-	private double[] bias1;
-	private double[] bias2;
-	private double[][] wDelta;
-	private double[] b1Delta;
-	private double[] b2Delta;
+	private float[] x;		//入力層
+	private float[] nx;	//ノイズ付加入力層
+	private float[] y;		//中間層
+	private float[] z;		//出力層
+	private float[][] weight;
+	private float[] bias1;
+	private float[] bias2;
+	private float[][] wDelta;
+	private float[] b1Delta;
+	private float[] b2Delta;
 	
 	private int paraN;		//並列数
 	
@@ -29,26 +29,26 @@ public class AutoEncoder {
 		
 		this.paraN = paraN;
 		
-		x = new double[n];
-		nx = new double[n];
-		y = new double[m];
-		z = new double[n];
+		x = new float[n];
+		nx = new float[n];
+		y = new float[m];
+		z = new float[n];
 		
-		weight = new double[m][n];
+		weight = new float[m][n];
 		for(int j = 0; j < m; j++) {
 			for(int i = 0; i < n; i++) {
-				weight[j][i] = Math.random() * 0.02 - 0.01;
+				weight[j][i] = (float) (Math.random() * 0.02 - 0.01);
 			}
 		}
 		
-		bias1 = new double[m];
-		bias2 = new double[n];
-		Arrays.fill(bias1, 0.0);
-		Arrays.fill(bias2, 0.0);
+		bias1 = new float[m];
+		bias2 = new float[n];
+		Arrays.fill(bias1, 0);
+		Arrays.fill(bias2, 0);
 		
-		wDelta = new double[m][n];
-		b1Delta = new double[m];
-		b2Delta = new double[n];
+		wDelta = new float[m][n];
+		b1Delta = new float[m];
+		b2Delta = new float[n];
 	}
 	
 	private void loop(int n, IntConsumer body) {
@@ -60,17 +60,17 @@ public class AutoEncoder {
 		});
 	}
 	
-	private double sigmoid(double x) {
-		return 1 / (1 + Math.exp(-x));
+	private float sigmoid(float x) {
+		return (float) (1 / (1 + Math.exp(-x)));
 	}
 	
-	private void addNoise(double noiseRate) {
+	private void addNoise(float noiseRate) {
 		for(int i = 0; i < n; i++) nx[i] = Math.random() < noiseRate? 0 : x[i];
 	}
 	
 	private void encode() {
 		loop(m, j -> {
-			double s = 0;
+			float s = 0;
 			for(int i = 0; i < n; i++) s += weight[j][i] * nx[i];
 			y[j] = sigmoid(s + bias1[j]);
 		});
@@ -78,7 +78,7 @@ public class AutoEncoder {
 	
 	private void decode() {
 		loop(n, i -> {
-			double s = 0;
+			float s = 0;
 			for(int j = 0; j < m; j++) s += weight[j][i] * y[j];
 			z[i] = sigmoid(s + bias2[i]);
 		});
@@ -90,21 +90,21 @@ public class AutoEncoder {
 	}
 	
 	private void initDelta() {
-		Arrays.fill(b1Delta, 0.0);
-		Arrays.fill(b2Delta, 0.0);		
-		for(int j = 0; j < m; j++) Arrays.fill(wDelta[j], 0.0);
+		Arrays.fill(b1Delta, 0);
+		Arrays.fill(b2Delta, 0);		
+		for(int j = 0; j < m; j++) Arrays.fill(wDelta[j], 0);
 	}
 	
 	private void accumDelta() {
-		double[] eZ = new double[n];	//出力層の誤差
-		double[] eY = new double[m];	//中間層の誤差
+		float[] eZ = new float[n];	//出力層の誤差
+		float[] eY = new float[m];	//中間層の誤差
 		for(int i = 0; i < n; i++) {
 			eZ[i] = x[i] - z[i];
 			b2Delta[i] += eZ[i];
 		}
 
 		loop(m, j -> {
-			double s = 0;
+			float s = 0;
 			for(int i = 0; i < n; i++) s += weight[j][i] * eZ[i];
 			eY[j] = s * y[j] * (1 - y[j]);
 			b1Delta[j] += eY[j];
@@ -112,14 +112,14 @@ public class AutoEncoder {
 		});
 	}
 	
-	public void train(double[][] data, int trainN, int batchSize, double learnRate, double noiseRate, double weightDecay) {
-		int patN = data.length;
+	public void train(float[][] data, int epoch, int batchSize, float learnRate, float noiseRate, float weightDecay) {
+		int pattern = data.length;
 		
-		for(int t = 0; t < trainN * patN / batchSize; t++) {
+		for(int t = 0; t < epoch * pattern / batchSize; t++) {
 			initDelta();
 			
 			for(int i = 0; i < batchSize; i++) {
-				int index = (t * batchSize + i) % patN;
+				int index = (t * batchSize + i) % pattern;
 				System.arraycopy(data[index], 0, x, 0, n);
 				addNoise(noiseRate);
 				reconstruct();
@@ -135,8 +135,8 @@ public class AutoEncoder {
 		}
 	}
 	
-	public double[] test(double[] data) {
-		double[] out = new double[n];
+	public float[] test(float[] data) {
+		float[] out = new float[n];
 		System.arraycopy(data, 0, x, 0, n);
 		System.arraycopy(data, 0, nx, 0, n);
 		reconstruct();
@@ -144,8 +144,8 @@ public class AutoEncoder {
 		return out;
 	}
 	
-	public double[][] getWeight() {
-		double[][] param = new double[m][n + 1];
+	public float[][] getWeight() {
+		float[][] param = new float[m][n + 1];
 		for(int j = 0; j < m; j++) {
 			System.arraycopy(weight[j], 0, param[j], 0, n);
 			param[j][n] = bias1[j];

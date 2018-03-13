@@ -17,7 +17,7 @@ public class MnistView {
 	private static final int WIDTH = 28;
 	private static final int ROW = 10;
 	private static final int COLUMM = 10;
-	private double[][] images;
+	private float[][] images;
 	private GraphicsContext g;
 	
 	public MnistView(String title) {
@@ -58,7 +58,7 @@ public class MnistView {
 				for(int i = 0; i < ROW; i++) {
 					for(int j = 0; j < COLUMM; j++) {
 						int index = i * COLUMM + j;
-						if(images.length > index) g.drawImage(double2image(images[index]), j * (WIDTH + 1) + 1, i * (HEIGHT + 1) + 1);
+						if(images.length > index) g.drawImage(float2image(images[index]), j * (WIDTH + 1) + 1, i * (HEIGHT + 1) + 1);
 					}
 				}
 			}
@@ -66,7 +66,7 @@ public class MnistView {
 		});
 	}
 	
-	private Image double2image(double[] data) {
+	private Image float2image(float[] data) {
 		WritableImage image = new WritableImage(WIDTH, HEIGHT);
 		PixelWriter writer = image.getPixelWriter();
 		for(int i = 0; i < HEIGHT; i++) {
@@ -76,7 +76,7 @@ public class MnistView {
 	}
 	
 	//MNISTイメージを100件まで表示
-	public void view(double[][] images) {
+	public void view(float[][] images) {
 		this.images = images;
 		draw();
 	}
