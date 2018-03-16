@@ -8,12 +8,10 @@ import java.util.stream.IntStream;
 public class Perceptron {
 	private int layerN;		//レイヤー数
 	private int[] unitN;	//ユニット数
-	private float[][] unit;
+	private float[][][] unit;
 	private float[][][] weight;
-	private float[][] errSignal;	//誤差信号
+	private float[][][] errSignal;	//誤差信号
 	private float[][][] grad;		//勾配
-	
-	private int paraN;		//並列数
 	
 	private Function<Float, Float> activate;
 	private Function<Float, Float> dActivate;
@@ -57,32 +55,31 @@ public class Perceptron {
 	};
 	
 	public Perceptron(int[] unitN) {
-		this(unitN, Sigmoid, DSigmoid, 4);
+		this(unitN, Sigmoid, DSigmoid);
 	}
 	
-	public Perceptron(int[] unitN, Function<Float, Float> activate, Function<Float, Float> dActivate, int paraN) {
+	public Perceptron(int[] unitN, Function<Float, Float> activate, Function<Float, Float> dActivate) {
 		this.unitN = unitN;
 		layerN = unitN.length;
 		this.activate = activate;
 		this.dActivate = dActivate;
-		this.paraN = paraN;
 		
-		unit = new float[layerN][];
+		unit = new float[layerN][][];
 		weight = new float[layerN - 1][][];
 		
-		errSignal = new float[layerN - 1][];
+		errSignal = new float[layerN - 1][][];
 		grad = new float[layerN - 1][][];
 		
 		//データ形式の初期化
 		//出力層以外はバイアス用ユニット（1固定）追加
 		for(int l = 0; l < layerN - 1; l++) {
-			unit[l] = new float[unitN[l] + 1];
-			unit[l][unitN[l]] = 1.0f;
+			unit[l] = new float[unitN[l] + 1][1];
+			unit[l][unitN[l]][0] = 1;
 			weight[l] = new float[unitN[l + 1]][unitN[l] + 1];
-			errSignal[l] = new float[unitN[l + 1]];
+			errSignal[l] = new float[unitN[l + 1]][1];
 			grad[l] = new float[unitN[l + 1]][unitN[l] + 1];
 		}
-		unit[layerN - 1] = new float[unitN[layerN - 1]];
+		unit[layerN - 1] = new float[unitN[layerN - 1]][1];
 		
 		//ウェイトの初期化
 		for(int l = 0; l < layerN - 1; l++) {			//layer
@@ -94,29 +91,28 @@ public class Perceptron {
 		}
 	}
 	
-	public Perceptron(float[][][] weight, Function<Float, Float> activate, Function<Float, Float> dActivate, int paraN) {
+	public Perceptron(float[][][] weight, Function<Float, Float> activate, Function<Float, Float> dActivate) {
 		this.weight = weight;
 		this.activate = activate;
 		this.dActivate = dActivate;
-		this.paraN = paraN;
 		
 		layerN = weight.length + 1;
 		unitN = new int[layerN];
-		unit = new float[layerN][];
+		unit = new float[layerN][][];
 		
-		errSignal = new float[layerN - 1][];
+		errSignal = new float[layerN - 1][][];
 		grad = new float[layerN - 1][][];
 		
 		for(int l = 0; l < layerN - 1; l++) unitN[l] = weight[l][0].length - 1;
 		unitN[layerN - 1] = weight[layerN - 2].length;
 		
 		for(int l = 0; l < layerN - 1; l++) {
-			unit[l] = new float[unitN[l] + 1];
-			unit[l][unitN[l]] = 1.0f;
-			errSignal[l] = new float[unitN[l + 1]];
+			unit[l] = new float[unitN[l] + 1][1];
+			unit[l][unitN[l]][0] = 1;
+			errSignal[l] = new float[unitN[l + 1]][1];
 			grad[l] = new float[unitN[l + 1]][unitN[l] + 1];
 		}
-		unit[layerN - 1] = new float[unitN[layerN - 1]];
+		unit[layerN - 1] = new float[unitN[layerN - 1]][1];
 	}
 	
 	public static float[][] oneHotVector(int[] data) {
@@ -144,70 +140,52 @@ public class Perceptron {
 		return y;
 	}
 	
-	private void loop(int n, IntConsumer body) {
-		int unitLength = (int) Math.ceil((double)n / paraN);
-		IntStream.range(0, paraN).parallel().forEach(i -> {
-			int start = i * unitLength;
-			int end = Math.min((i + 1) * unitLength, n);
-			for(int j = start; j < end; j++) body.accept(j);
-		});
+	//ウェイトからバイアス部分を取り除いたもの
+	private static float[][] removeBias(float[][] weight) {
+		float[][] f = new float[weight.length][weight[0].length - 1];
+		for(int i = 0; i < f.length; i++) System.arraycopy(weight[i], 0, f[i], 0, f[0].length);
+		return f;
 	}
 	
 	public void forward(float[] x) {
 		//入力層のセット
-		System.arraycopy(x, 0, unit[0], 0, x.length);
+		for(int i = 0; i < x.length; i++) unit[0][i][0] = x[i];
 		
 		//中間層の計算
 		for(int l = 0; l < layerN - 2; l++) {
-			final int layer = l;
-			loop(unitN[l + 1], i -> {
-				float s = 0;
-				for(int j = 0; j < unitN[layer] + 1; j++) s += weight[layer][i][j] * unit[layer][j];
-				unit[layer + 1][i] = activate.apply(s);
-			});
+			float[][] post = LinearAlgebra.multi(weight[l], unit[l]);
+			for(int i = 0; i < post.length; i++) unit[l + 1][i][0] = activate.apply(post[i][0]);
 		}
 		
 		//出力層の計算
-		float[] out = new float[unitN[layerN - 1]];
-		loop(unitN[layerN - 1], i -> {
-			out[i] = 0.0f;
-			for(int j = 0; j < unitN[layerN - 2] + 1; j++) {
-				out[i] += weight[layerN - 2][i][j] * unit[layerN - 2][j];
-			}
-		});
+		float[][] out = LinearAlgebra.multi(weight[layerN - 2], unit[layerN - 2]);
 		
 		//多クラス分類ならsoftmax、二分ならsigmoid関数
-		if(unitN[layerN - 1] != 1) unit[layerN - 1] = softmax(out);
-		else unit[layerN - 1][0] = Sigmoid.apply(out[0]);
+		if(unitN[layerN - 1] != 1) {
+			float[] normal = softmax(LinearAlgebra.trans(out)[0]);
+			for(int i = 0; i < normal.length; i++) unit[layerN - 1][i][0] = normal[i];
+		}else unit[layerN - 1][0][0] = Sigmoid.apply(out[0][0]);
 	}
 	
 	private void backPropagate(float[] t) {
 		//出力層の誤差計算
-		for(int i = 0; i < unitN[layerN - 1]; i++) {
-			float e = t[i] - unit[layerN - 1][i];
-			errSignal[layerN - 2][i] = e;
-			for(int j = 0; j < unitN[layerN - 2] + 1; j++) grad[layerN - 2][i][j] += errSignal[layerN - 2][i] * unit[layerN - 2][j];
-		}
-		
+		errSignal[layerN - 2] = LinearAlgebra.sub(LinearAlgebra.columnVector(t), unit[layerN - 1]);
+		float err = LinearAlgebra.norm(LinearAlgebra.trans(errSignal[layerN - 2])[0]);
+		grad[layerN - 2] = LinearAlgebra.multi(errSignal[layerN - 2], LinearAlgebra.trans(unit[layerN - 2]));
+
 		//中間層の誤差計算
 		for(int l = layerN - 2; l > 0; l--) {
-			final int layer = l;
-			loop(unitN[l], i -> {
-				float df = dActivate.apply(unit[layer][i]);
-				float s = 0;
-				for(int j = 0; j < unitN[layer + 1]; j++) s += errSignal[layer][j] * weight[layer][j][i];
-				errSignal[layer - 1][i] = df * s;
-				for(int j = 0; j < unitN[layer - 1] + 1; j++) grad[layer - 1][i][j] += errSignal[layer - 1][i] * unit[layer - 1][j];
-			});
+			float df[][] = new float[unitN[l]][1];
+			for(int i = 0; i < unitN[l]; i++) df[i][0] = dActivate.apply(unit[l][i][0]);
+			float[][] tW = LinearAlgebra.trans(removeBias(weight[l]));	//ウェイトからバイアスを除いた行列の転地
+			errSignal[l - 1] = LinearAlgebra.hadamard(LinearAlgebra.multi(tW, errSignal[l]), df);
+			grad[l - 1] = LinearAlgebra.multi(errSignal[l - 1], LinearAlgebra.trans(unit[l - 1]));
 		}
 	}
 	
-	private void update(double rate) {
+	private void update(float rate) {
 		for(int l = layerN - 2; l >= 0; l--) {
-			final int layer = l;
-			loop(unitN[l + 1], i -> {
-				for(int j = 0; j < unitN[layer] + 1; j++) weight[layer][i][j] += rate * grad[layer][i][j];
-			});
+			weight[l] = LinearAlgebra.add(weight[l].clone(), LinearAlgebra.multi(rate, grad[l]));
 		}
 	}
 	
@@ -245,16 +223,13 @@ public class Perceptron {
 	}
 	
 	public float[] output() {
-		float[] out = new float[unitN[layerN - 1]];
-		System.arraycopy(unit[layerN - 1], 0, out, 0, unitN[layerN - 1]);
-		
-		return out;
+		return LinearAlgebra.trans(unit[layerN - 1])[0];
 	}
 	
 	public int getResult() {
 		float max = 0;
 		int idx = -1;
-		float out[] = unit[layerN - 1];
+		float out[] = output();
 		for(int i = 0; i < out.length; i++) {
 			if(out[i] > max) {
 				max = out[i];

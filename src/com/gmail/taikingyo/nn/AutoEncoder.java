@@ -1,38 +1,28 @@
 package com.gmail.taikingyo.nn;
 
 import java.util.Arrays;
-import java.util.function.IntConsumer;
-import java.util.stream.IntStream;
 
 public class AutoEncoder {
-	private int n,m;		//入力層・中間層ユニット数
-	private float[] x;		//入力層
-	private float[] nx;	//ノイズ付加入力層
-	private float[] y;		//中間層
-	private float[] z;		//出力層
+	private int n,m;			//入力層・中間層ユニット数
+	private float[][] x;		//入力層
+	private float[][] nx;		//ノイズ付加入力層
+	private float[][] y;		//中間層
+	private float[][] z;		//出力層
 	private float[][] weight;
 	private float[] bias1;
 	private float[] bias2;
 	private float[][] wDelta;
-	private float[] b1Delta;
-	private float[] b2Delta;
-	
-	private int paraN;		//並列数
+	private float[][] b1Delta;
+	private float[][] b2Delta;
 	
 	public AutoEncoder(int n, int m) {
-		this(n, m, 4);
-	}
-	
-	public AutoEncoder(int n, int m, int paraN) {
 		this.n = n;
 		this.m = m;
 		
-		this.paraN = paraN;
-		
-		x = new float[n];
-		nx = new float[n];
-		y = new float[m];
-		z = new float[n];
+		x = new float[n][1];
+		nx = new float[n][1];
+		y = new float[m][1];
+		z = new float[n][1];
 		
 		weight = new float[m][n];
 		for(int j = 0; j < m; j++) {
@@ -47,17 +37,8 @@ public class AutoEncoder {
 		Arrays.fill(bias2, 0);
 		
 		wDelta = new float[m][n];
-		b1Delta = new float[m];
-		b2Delta = new float[n];
-	}
-	
-	private void loop(int n, IntConsumer body) {
-		int unitLength = (int) Math.ceil((double)n / paraN);
-		IntStream.range(0, paraN).parallel().forEach(i -> {
-			int start = i * unitLength;
-			int end = Math.min((i + 1) * unitLength, n);
-			for(int j = start; j < end; j++) body.accept(j);
-		});
+		b1Delta = new float[m][1];
+		b2Delta = new float[n][1];
 	}
 	
 	private float sigmoid(float x) {
@@ -65,23 +46,18 @@ public class AutoEncoder {
 	}
 	
 	private void addNoise(float noiseRate) {
-		for(int i = 0; i < n; i++) nx[i] = Math.random() < noiseRate? 0 : x[i];
+		for(int i = 0; i < n; i++) nx[i][0] = Math.random() < noiseRate? 0 : x[i][0];
 	}
 	
 	private void encode() {
-		loop(m, j -> {
-			float s = 0;
-			for(int i = 0; i < n; i++) s += weight[j][i] * nx[i];
-			y[j] = sigmoid(s + bias1[j]);
-		});
+		float[][] multi = LinearAlgebra.multi(weight, nx);
+		for(int j = 0; j < m; j++) y[j][0] = sigmoid(multi[j][0] + bias1[j]);
 	}
 	
 	private void decode() {
-		loop(n, i -> {
-			float s = 0;
-			for(int j = 0; j < m; j++) s += weight[j][i] * y[j];
-			z[i] = sigmoid(s + bias2[i]);
-		});
+		float[][] tY = LinearAlgebra.trans(y);
+		float[][] multi = LinearAlgebra.multi(tY, weight);
+		for(int i = 0; i < n; i++) z[i][0] = sigmoid(multi[0][i] + bias2[i]);
 	}
 	
 	private void reconstruct() {
@@ -90,26 +66,24 @@ public class AutoEncoder {
 	}
 	
 	private void initDelta() {
-		Arrays.fill(b1Delta, 0);
-		Arrays.fill(b2Delta, 0);		
+		b1Delta = new float[m][1];
+		b2Delta = new float[n][1];
 		for(int j = 0; j < m; j++) Arrays.fill(wDelta[j], 0);
 	}
 	
 	private void accumDelta() {
-		float[] eZ = new float[n];	//出力層の誤差
-		float[] eY = new float[m];	//中間層の誤差
-		for(int i = 0; i < n; i++) {
-			eZ[i] = x[i] - z[i];
-			b2Delta[i] += eZ[i];
-		}
-
-		loop(m, j -> {
-			float s = 0;
-			for(int i = 0; i < n; i++) s += weight[j][i] * eZ[i];
-			eY[j] = s * y[j] * (1 - y[j]);
-			b1Delta[j] += eY[j];
-			for(int i = 0; i < n; i++) wDelta[j][i] += eY[j] * nx[i] + eZ[i] * y[j];
-		});
+		float[][] eZ = LinearAlgebra.sub(x, z);	//出力層の誤差
+		b2Delta = LinearAlgebra.add(b2Delta.clone(), eZ);
+		
+		float[][] eY = new float[m][1];	//中間層の誤差
+		float[][] s = LinearAlgebra.multi(weight, eZ);
+		for(int j = 0; j < m; j++) eY[j][0] = s[j][0] * y[j][0] * (1 - y[j][0]);
+		b1Delta = LinearAlgebra.add(b1Delta.clone(), eY);
+		
+		float[][] mat1 = LinearAlgebra.multi(eY, LinearAlgebra.trans(nx));
+		float[][] mat2 = LinearAlgebra.multi(eZ, LinearAlgebra.trans(y));
+		float[][] mat3 = LinearAlgebra.add(mat1, LinearAlgebra.trans(mat2));
+		wDelta = LinearAlgebra.add(wDelta.clone(), mat3);
 	}
 	
 	public void train(float[][] data, int epoch, int batchSize, float learnRate, float noiseRate, float weightDecay) {
@@ -120,16 +94,16 @@ public class AutoEncoder {
 			
 			for(int i = 0; i < batchSize; i++) {
 				int index = (t * batchSize + i) % pattern;
-				System.arraycopy(data[index], 0, x, 0, n);
+				for(int j = 0; j < n; j++) x[j][0] = data[index][j];
 				addNoise(noiseRate);
 				reconstruct();
 				accumDelta();
 			}
 			
-			for(int i = 0; i < n; i++) bias2[i] += b2Delta[i] * learnRate;
+			for(int i = 0; i < n; i++) bias2[i] += b2Delta[i][0] * learnRate;
 
 			for(int j = 0; j < m; j++) {
-				bias1[j] += b1Delta[j] * learnRate;
+				bias1[j] += b1Delta[j][0] * learnRate;
 				for(int i = 0; i < n; i++) weight[j][i] += wDelta[j][i] * learnRate - weight[j][i] * weightDecay;
 			}
 		}
@@ -137,10 +111,10 @@ public class AutoEncoder {
 	
 	public float[] test(float[] data) {
 		float[] out = new float[n];
-		System.arraycopy(data, 0, x, 0, n);
-		System.arraycopy(data, 0, nx, 0, n);
+		x = LinearAlgebra.columnVector(data);
+		nx = x.clone();
 		reconstruct();
-		System.arraycopy(z, 0, out, 0, n);
+		for(int i = 0; i < n; i++) out[i] = z[i][0];
 		return out;
 	}
 	

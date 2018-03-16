@@ -2,16 +2,12 @@ package com.gmail.taikingyo.nn;
 
 public class StackedAutoEncoder {
 	private AutoEncoder[] aes;
-	
-	public StackedAutoEncoder(int[] unitN) {
-		this(unitN, 4);
-	}
 
-	public StackedAutoEncoder(int[] unitN, int paraN) {
+	public StackedAutoEncoder(int[] unitN) {
 		aes = new AutoEncoder[unitN.length - 1];
 		
 		for(int i = 0; i < unitN.length - 1; i++) {
-			aes[i] = new AutoEncoder(unitN[i], unitN[i + 1], paraN);
+			aes[i] = new AutoEncoder(unitN[i], unitN[i + 1]);
 		}
 	}
 	

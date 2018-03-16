@@ -7,7 +7,6 @@ public class SAETest {
 	int[] struct = {784, 400, 400, 10};
 
 	//並列数、データ数、トレーニング回数は開発PCの性能上、低く抑えています
-	int paraN = 4;			//コア数次第で任意
 	int trainDataN = 20000;	//できればフルセット60000
 	int epoch = 1;			//10回程度？
 	
@@ -27,9 +26,9 @@ public class SAETest {
 	
 	void preTrain() {
 		System.out.println("pre training...");
-		StackedAutoEncoder sae = new StackedAutoEncoder(struct, paraN);
+		StackedAutoEncoder sae = new StackedAutoEncoder(struct);
 		sae.preTrain(trainData, epoch, batchSize, learnRate, noiseRate, weightDecay);
-		p = new Perceptron(sae.getWeight(), Perceptron.Sigmoid, Perceptron.DSigmoid, paraN);
+		p = new Perceptron(sae.getWeight(), Perceptron.Sigmoid, Perceptron.DSigmoid);
 	}
 	
 	void fineTune() {
