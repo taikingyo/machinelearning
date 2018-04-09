@@ -1,9 +1,8 @@
 package com.gmail.taikingyo.nn;
 
 import java.util.Arrays;
+import java.util.Random;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
-import java.util.stream.IntStream;
 
 public class Perceptron {
 	private int layerN;		//レイヤー数
@@ -21,7 +20,6 @@ public class Perceptron {
 
 		@Override
 		public Float apply(Float t) {
-			// TODO Auto-generated method stub
 			return (float) (1 / (1 + Math.exp(-t)));
 		}};
 	
@@ -30,7 +28,6 @@ public class Perceptron {
 
 		@Override
 		public Float apply(Float t) {
-			// TODO Auto-generated method stub
 			return t * (1 - t);
 		}};
 	
@@ -39,8 +36,7 @@ public class Perceptron {
 
 		@Override
 		public Float apply(Float t) {
-			// TODO Auto-generated method stub
-			return Math.max(t, 0);
+			return (float) Math.max(t, 0);
 		}
 	};
 	
@@ -49,16 +45,15 @@ public class Perceptron {
 
 		@Override
 		public Float apply(Float t) {
-			// TODO Auto-generated method stub
 			return (t > 0)? 1.0f : 0;
 		}
 	};
 	
 	public Perceptron(int[] unitN) {
-		this(unitN, Sigmoid, DSigmoid);
+		this(unitN, Sigmoid, DSigmoid, 0);
 	}
 	
-	public Perceptron(int[] unitN, Function<Float, Float> activate, Function<Float, Float> dActivate) {
+	public Perceptron(int[] unitN, Function<Float, Float> activate, Function<Float, Float> dActivate, long seed) {
 		this.unitN = unitN;
 		layerN = unitN.length;
 		this.activate = activate;
@@ -69,6 +64,7 @@ public class Perceptron {
 		
 		errSignal = new float[layerN - 1][][];
 		grad = new float[layerN - 1][][];
+		Random rnd = new Random(seed);
 		
 		//データ形式の初期化
 		//出力層以外はバイアス用ユニット（1固定）追加
@@ -83,9 +79,10 @@ public class Perceptron {
 		
 		//ウェイトの初期化
 		for(int l = 0; l < layerN - 1; l++) {			//layer
+			double sd = Math.pow(unitN[l], -0.5);	//プレニューロンのユニット数から標準偏差を決定
 			for(int i = 0; i < unitN[l + 1]; i++) {		//post neuron
 				for(int j = 0; j < unitN[l] + 1; j++) {	//pre neuron
-					weight[l][i][j] = (float) (Math.random() * 2 - 1);	//-1.0~1.0の一様分布
+					weight[l][i][j] = (float) (rnd.nextGaussian() * sd);	//正規分布乱数
 				}
 			}
 		}
@@ -126,15 +123,18 @@ public class Perceptron {
 	
 	public static float[] softmax(float[] x) {
 		float[] y = new float[x.length];
-		float s = 0;
+		
+		//ReLU使用時、計算中にfloat最大値を超えNaNとなるのを避けるためdouble型を使用
+		double[] tmp = new double[x.length];
+		double s = 0;
 		
 		for(int i = 0; i < x.length; i++) {
-			y[i] = (float) Math.exp(x[i]);
-			s += y[i];
+			tmp[i] = Math.exp(x[i]);
+			s += tmp[i];
 		}
 		
 		for(int i = 0; i < x.length; i++) {
-			y[i] /= s;
+			y[i] = (float) (tmp[i] / s);
 		}
 		
 		return y;
@@ -169,8 +169,7 @@ public class Perceptron {
 	
 	private void backPropagate(float[] t) {
 		//出力層の誤差計算
-		errSignal[layerN - 2] = LinearAlgebra.sub(LinearAlgebra.columnVector(t), unit[layerN - 1]);
-		float err = LinearAlgebra.norm(LinearAlgebra.trans(errSignal[layerN - 2])[0]);
+		errSignal[layerN - 2] = getErr(LinearAlgebra.columnVector(t));
 		grad[layerN - 2] = LinearAlgebra.multi(errSignal[layerN - 2], LinearAlgebra.trans(unit[layerN - 2]));
 
 		//中間層の誤差計算
@@ -183,9 +182,11 @@ public class Perceptron {
 		}
 	}
 	
-	private void update(float rate) {
+	private void update(float rate, float weightDecay) {
 		for(int l = layerN - 2; l >= 0; l--) {
-			weight[l] = LinearAlgebra.add(weight[l].clone(), LinearAlgebra.multi(rate, grad[l]));
+			float[][] decay = LinearAlgebra.multi(1 - weightDecay, weight[l]);
+			float[][] delta = LinearAlgebra.multi(rate, grad[l]);
+			weight[l] = LinearAlgebra.add(decay, delta);
 		}
 	}
 	
@@ -203,12 +204,12 @@ public class Perceptron {
 				initGrad();
 				forward(data[p]);
 				backPropagate(teach[p]);
-				update(learnRate);
+				update(learnRate, 0);
 			}
 		}
 	}
 	
-	public void train(float[][] data, float[][] teach, int epoch, int batchSize, float learnRate) {
+	public void train(float[][] data, float[][] teach, int epoch, int batchSize, float learnRate, float weightDecay) {
 		int pattern = data.length;
 		
 		for(int e = 0; e < epoch * pattern / batchSize; e++) {
@@ -218,12 +219,16 @@ public class Perceptron {
 				forward(data[index]);
 				backPropagate(teach[index]);
 			}
-			update(learnRate);
+			update(learnRate, weightDecay);
 		}
 	}
 	
 	public float[] output() {
 		return LinearAlgebra.trans(unit[layerN - 1])[0];
+	}
+	
+	public float[][] getErr(float[][] t) {
+		return LinearAlgebra.sub(t, unit[layerN - 1]);
 	}
 	
 	public int getResult() {
