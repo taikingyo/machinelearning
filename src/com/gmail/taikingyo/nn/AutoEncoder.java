@@ -118,6 +118,15 @@ public class AutoEncoder {
 		return out;
 	}
 	
+	public float[] encode(float[] data) {
+		float[] out = new float[m];
+		x = LinearAlgebra.columnVector(data);
+		nx = x.clone();
+		encode();
+		for(int i = 0; i < m; i++) out[i] = y[i][0];
+		return out;
+	}
+	
 	public float[][] getWeight() {
 		float[][] param = new float[m][n + 1];
 		for(int j = 0; j < m; j++) {

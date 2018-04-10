@@ -12,12 +12,11 @@ public class StackedAutoEncoder {
 	}
 	
 	public void preTrain(float[][] data, int epoch, int batchSize, float learnRate, float noiseRate, float weightDecay) {
-		float[][] trainData = new float[data.length][];
+		float[][] trainData = data.clone();
 		
 		for(int i = 0; i < aes.length; i++) {
-			if(i == 0) trainData = data;
-			else for(int j = 0; j < data.length; j++) trainData[j] = aes[i].test(trainData[j]);
 			aes[i].train(trainData, epoch, batchSize, learnRate, noiseRate, weightDecay);
+			for(int j = 0; j < data.length; j++) trainData[j] = aes[i].encode(trainData[j]);
 		}
 	}
 	
