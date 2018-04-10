@@ -20,7 +20,10 @@ public class LinearAlgebra {
 			});
 			
 			return mat;
-		}else return null;
+		}else {
+			System.err.printf("LinearAlgebra.add: mat1 rows:%d columns:%d mat2 rows:%d columns:%d\n", mat1.length, mat1[0].length, mat2.length, mat2[0].length);
+			return null;
+		}
 	}
 	
 	//行列の減算
@@ -39,7 +42,10 @@ public class LinearAlgebra {
 			});
 			
 			return mat;
-		}else return null;
+		}else {
+			System.err.printf("LinearAlgebra.sub: mat1 rows:%d columns:%d mat2 rows:%d columns:%d\n", mat1.length, mat1[0].length, mat2.length, mat2[0].length);
+			return null;
+		}
 	}
 	
 	//行列のスカラー倍
@@ -78,7 +84,10 @@ public class LinearAlgebra {
 			});
 			
 			return mat;
-		}else return null;
+		}else {
+			System.err.printf("LinearAlgebra.multi: left rows:%d columns:%d right rows:%d columns:%d\n", left.length, left[0].length, right.length, right[0].length);
+			return null;
+		}
 	}
 	
 	//行列のアダマール積
@@ -96,7 +105,10 @@ public class LinearAlgebra {
 			
 			return mat;
 			
-		}else return null;
+		}else {
+			System.err.printf("LinearAlgebra.hadamard: mat1 rows:%d columns:%d mat2 rows:%d columns:%d\n", mat1.length, mat1[0].length, mat2.length, mat2[0].length);
+			return null;
+		}
 	}
 	
 	//行列の転地
@@ -154,7 +166,7 @@ public class LinearAlgebra {
 	public static void printMatrix(float[][] mat) {
 		int rows = mat.length;
 		int columns = mat[0].length;
-		System.out.printf("rows: %2d columms: %2d\n", rows, columns);
+		System.out.printf("rows: %2d columns: %2d\n", rows, columns);
 		
 		for(int r = 0; r < rows; r++) {
 			for(int c = 0; c < columns; c++) {
@@ -167,6 +179,6 @@ public class LinearAlgebra {
 	public static void size(float[][] mat) {
 		int rows = mat.length;
 		int columns = mat[0].length;
-		System.out.printf("rows: %2d columms: %2d\n", rows, columns);
+		System.out.printf("rows: %2d columns: %2d\n", rows, columns);
 	}
 }
