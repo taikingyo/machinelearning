@@ -170,7 +170,7 @@ public class Perceptron {
 	private void backPropagate(float[] t) {
 		//出力層の誤差計算
 		errSignal[layerN - 2] = getErr(LinearAlgebra.columnVector(t));
-		grad[layerN - 2] = LinearAlgebra.multi(errSignal[layerN - 2], LinearAlgebra.trans(unit[layerN - 2]));
+		grad[layerN - 2] = LinearAlgebra.add(grad[layerN - 2].clone(), LinearAlgebra.multi(errSignal[layerN - 2], LinearAlgebra.trans(unit[layerN - 2])));
 
 		//中間層の誤差計算
 		for(int l = layerN - 2; l > 0; l--) {
@@ -178,7 +178,7 @@ public class Perceptron {
 			for(int i = 0; i < unitN[l]; i++) df[i][0] = dActivate.apply(unit[l][i][0]);
 			float[][] tW = LinearAlgebra.trans(removeBias(weight[l]));	//ウェイトからバイアスを除いた行列の転地
 			errSignal[l - 1] = LinearAlgebra.hadamard(LinearAlgebra.multi(tW, errSignal[l]), df);
-			grad[l - 1] = LinearAlgebra.multi(errSignal[l - 1], LinearAlgebra.trans(unit[l - 1]));
+			grad[l - 1] = LinearAlgebra.add(grad[l - 1].clone(), LinearAlgebra.multi(errSignal[l - 1], LinearAlgebra.trans(unit[l - 1])));
 		}
 	}
 	
@@ -191,8 +191,8 @@ public class Perceptron {
 	}
 	
 	private void initGrad() {
-		for(float[][] ff : grad) {
-			for(float[] f : ff) Arrays.fill(f, 0);
+		for(int l = 0; l < grad.length; l++) {
+			for(int i = 0; i < grad[l].length; i++) Arrays.fill(grad[l][i], 0);
 		}
 	}
 	
