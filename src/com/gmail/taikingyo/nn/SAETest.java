@@ -18,7 +18,7 @@ public class SAETest {
 	public SAETest() {
 		trainData = MnistData.readImage(MnistData.TRAIN_IMAGE, 0, trainDataN);
 		int[] label = MnistData.readLabel(MnistData.TRAIN_LABEL, 0, trainDataN);
-		trainLabel = Perceptron.oneHotVector(label);
+		trainLabel = Perceptron.oneHotVector(label, 10);
 		
 		preTrain();
 		fineTune();
@@ -37,7 +37,7 @@ public class SAETest {
 		for(int i = 0; i < 60000; i += size) {
 			trainData = MnistData.readImage(MnistData.TRAIN_IMAGE, i, size);
 			int[] label = MnistData.readLabel(MnistData.TRAIN_LABEL, i, size);
-			trainLabel = Perceptron.oneHotVector(label);
+			trainLabel = Perceptron.oneHotVector(label, 10);
 			p.train(trainData, trainLabel, epoch, learnRate);
 			System.out.printf("tune %5d / 60000\n", i + size);
 			test();

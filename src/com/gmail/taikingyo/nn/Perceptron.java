@@ -1,5 +1,6 @@
 package com.gmail.taikingyo.nn;
 
+import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.function.Function;
@@ -112,11 +113,11 @@ public class Perceptron {
 		unit[layerN - 1] = new float[unitN[layerN - 1]][1];
 	}
 	
-	public static float[][] oneHotVector(int[] data) {
-		float[][] vec = new float[data.length][10];
-		for(int i = 0; i < data.length; i++) {
+	public static float[][] oneHotVector(int[] label, int classN) {
+		float[][] vec = new float[label.length][classN];
+		for(int i = 0; i < label.length; i++) {
 			Arrays.fill(vec[i], 0);
-			vec[i][data[i]] = 1.0f;
+			vec[i][label[i]] = 1;
 		}
 		return vec;
 	}
@@ -169,7 +170,7 @@ public class Perceptron {
 	
 	private void backPropagate(float[] t) {
 		//出力層の誤差計算
-		errSignal[layerN - 2] = getErr(LinearAlgebra.columnVector(t));
+		errSignal[layerN - 2] = LinearAlgebra.sub(LinearAlgebra.columnVector(t), unit[layerN - 1]);
 		grad[layerN - 2] = LinearAlgebra.add(grad[layerN - 2].clone(), LinearAlgebra.multi(errSignal[layerN - 2], LinearAlgebra.trans(unit[layerN - 2])));
 
 		//中間層の誤差計算
@@ -223,12 +224,25 @@ public class Perceptron {
 		}
 	}
 	
-	public float[] output() {
-		return LinearAlgebra.trans(unit[layerN - 1])[0];
+	public void test(float[][] testData, int[] testLabel, PrintWriter pw) {
+		int pattern = testData.length;
+		int classN = unitN[layerN - 1];
+		float[][] testTarget = oneHotVector(testLabel, classN);
+		float err = 0;
+		int acc = 0;
+		
+		for(int i = 0; i < pattern; i++) {
+			forward(testData[i]);
+			float[][] sub = LinearAlgebra.sub(LinearAlgebra.columnVector(testTarget[i]), unit[layerN - 1]);
+			err += LinearAlgebra.norm(LinearAlgebra.trans(sub)[0]);
+			if(testLabel[i] == getResult()) acc++;
+		}
+		
+		pw.printf("error: %.4f, accuracy: %.4f\n", err / pattern, (float) acc / pattern);
 	}
 	
-	public float[][] getErr(float[][] t) {
-		return LinearAlgebra.sub(t, unit[layerN - 1]);
+	public float[] output() {
+		return LinearAlgebra.trans(unit[layerN - 1])[0];
 	}
 	
 	public int getResult() {
