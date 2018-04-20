@@ -23,11 +23,12 @@ public class XORTest {
 		p.train(trainData, teachData, trainN, learnRate);
 		
 		System.out.println("test");
-		for(float[] in : testData) {
-			for(double d : in) System.out.printf("%.0f  ", d);
-			p.forward(in);
-			float[] out = p.output();
-			System.out.printf(" ans %.2f\n", out[0]);
+		p.forward(testData);
+		float[][] out = p.output();
+		
+		for(int i = 0; i < testData.length; i++) {
+			for(double d : testData[i]) System.out.printf("%.0f  ", d);
+			System.out.printf(" ans %.2f\n", out[i][0]);
 		}
 	}
 }

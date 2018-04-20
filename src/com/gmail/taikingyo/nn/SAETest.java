@@ -1,5 +1,7 @@
 package com.gmail.taikingyo.nn;
 
+import java.io.PrintWriter;
+
 public class SAETest {
 	Perceptron p;
 	float[][] trainData;
@@ -48,12 +50,9 @@ public class SAETest {
 		float[][] testData = MnistData.readImage(MnistData.TEST_IMAGE, 0, 10000);
 		int[] testLabel = MnistData.readLabel(MnistData.TEST_LABEL, 0, 10000);
 		
-		int a = 0;
-		for(int i = 0; i < testData.length; i++) {
-			p.forward(testData[i]);
-			if(testLabel[i] == p.getResult()) a++;
-		}
-		System.out.printf("accuracy: %4f\n", (double)a / 10000);
+		PrintWriter pw = new PrintWriter(System.out);
+		p.test(testData, testLabel, pw);
+		pw.close();
 	}
 
 	public static void main(String[] args) {

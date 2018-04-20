@@ -70,13 +70,10 @@ public class Perceptron {
 		//データ形式の初期化
 		//出力層以外はバイアス用ユニット（1固定）追加
 		for(int l = 0; l < layerN - 1; l++) {
-			unit[l] = new float[unitN[l] + 1][1];
-			unit[l][unitN[l]][0] = 1;
 			weight[l] = new float[unitN[l + 1]][unitN[l] + 1];
 			errSignal[l] = new float[unitN[l + 1]][1];
 			grad[l] = new float[unitN[l + 1]][unitN[l] + 1];
 		}
-		unit[layerN - 1] = new float[unitN[layerN - 1]][1];
 		
 		//ウェイトの初期化
 		for(int l = 0; l < layerN - 1; l++) {			//layer
@@ -105,12 +102,9 @@ public class Perceptron {
 		unitN[layerN - 1] = weight[layerN - 2].length;
 		
 		for(int l = 0; l < layerN - 1; l++) {
-			unit[l] = new float[unitN[l] + 1][1];
-			unit[l][unitN[l]][0] = 1;
 			errSignal[l] = new float[unitN[l + 1]][1];
 			grad[l] = new float[unitN[l + 1]][unitN[l] + 1];
 		}
-		unit[layerN - 1] = new float[unitN[layerN - 1]][1];
 	}
 	
 	public static float[][] oneHotVector(int[] label, int classN) {
@@ -122,7 +116,7 @@ public class Perceptron {
 		return vec;
 	}
 	
-	public static float[] softmax(float[] x) {
+	private static float[] softmax(float[] x) {
 		float[] y = new float[x.length];
 		
 		//ReLU使用時、計算中にfloat最大値を超えNaNとなるのを避けるためdouble型を使用
@@ -148,38 +142,60 @@ public class Perceptron {
 		return f;
 	}
 	
-	public void forward(float[] x) {
+	public void forward(float[][] x) {
+		int dataN = x.length;
+		
 		//入力層のセット
-		for(int i = 0; i < x.length; i++) unit[0][i][0] = x[i];
+		unit[0] = new float[unitN[0] + 1][dataN];
+		float[][] in = LinearAlgebra.trans(x);
+		for(int i = 0; i < unitN[0]; i++) System.arraycopy(in[i], 0, unit[0][i], 0, dataN);
+		Arrays.fill(unit[0][unitN[0]], 1);
 		
 		//中間層の計算
 		for(int l = 0; l < layerN - 2; l++) {
-			float[][] post = LinearAlgebra.multi(weight[l], unit[l]);
-			for(int i = 0; i < post.length; i++) unit[l + 1][i][0] = activate.apply(post[i][0]);
+			unit[l + 1] = new float[unitN[l + 1] + 1][dataN];
+			float[][] s = LinearAlgebra.multi(weight[l], unit[l]);
+			for(int i = 0; i < unitN[l + 1]; i++) {
+				for(int j = 0; j < dataN; j++) {
+					unit[l + 1][i][j] = activate.apply(s[i][j]);
+				}
+			}
+			Arrays.fill(unit[l + 1][unitN[l + 1]], 1);
 		}
 		
 		//出力層の計算
-		float[][] out = LinearAlgebra.multi(weight[layerN - 2], unit[layerN - 2]);
+		float[][] out = LinearAlgebra.trans(LinearAlgebra.multi(weight[layerN - 2], unit[layerN - 2]));
+		float[][] normal = new float[dataN][];
 		
 		//多クラス分類ならsoftmax、二分ならsigmoid関数
 		if(unitN[layerN - 1] != 1) {
-			float[] normal = softmax(LinearAlgebra.trans(out)[0]);
-			for(int i = 0; i < normal.length; i++) unit[layerN - 1][i][0] = normal[i];
-		}else unit[layerN - 1][0][0] = Sigmoid.apply(out[0][0]);
+			for(int i = 0; i < dataN; i++) normal[i] = softmax(out[i]);
+		}else {
+			for(int i = 0; i < dataN; i++) {
+				normal[i] = new float[1];
+				normal[i][0] = Sigmoid.apply(out[i][0]);
+			}
+		}
+		
+		unit[layerN - 1] = LinearAlgebra.trans(normal);
 	}
 	
-	private void backPropagate(float[] t) {
+	private void backPropagate(float[][] t) {
+		int dataN = t.length;
+		
 		//出力層の誤差計算
-		errSignal[layerN - 2] = LinearAlgebra.sub(LinearAlgebra.columnVector(t), unit[layerN - 1]);
-		grad[layerN - 2] = LinearAlgebra.add(grad[layerN - 2].clone(), LinearAlgebra.multi(errSignal[layerN - 2], LinearAlgebra.trans(unit[layerN - 2])));
-
+		errSignal[layerN - 2] = LinearAlgebra.sub(LinearAlgebra.trans(t), unit[layerN - 1]);
+		grad[layerN - 2] = LinearAlgebra.multi(errSignal[layerN - 2], LinearAlgebra.trans(unit[layerN - 2]));
+		
 		//中間層の誤差計算
 		for(int l = layerN - 2; l > 0; l--) {
-			float df[][] = new float[unitN[l]][1];
-			for(int i = 0; i < unitN[l]; i++) df[i][0] = dActivate.apply(unit[l][i][0]);
+			float[][] df = new float[unitN[l]][dataN];
+			for(int i = 0; i < unitN[l]; i++) {
+				for(int j = 0; j < dataN; j++) df[i][j] = dActivate.apply(unit[l][i][j]);
+			}
 			float[][] tW = LinearAlgebra.trans(removeBias(weight[l]));	//ウェイトからバイアスを除いた行列の転地
 			errSignal[l - 1] = LinearAlgebra.hadamard(LinearAlgebra.multi(tW, errSignal[l]), df);
-			grad[l - 1] = LinearAlgebra.add(grad[l - 1].clone(), LinearAlgebra.multi(errSignal[l - 1], LinearAlgebra.trans(unit[l - 1])));
+			grad[l - 1] = LinearAlgebra.multi(errSignal[l - 1], LinearAlgebra.trans(unit[l - 1]));
 		}
 	}
 	
@@ -191,71 +207,78 @@ public class Perceptron {
 		}
 	}
 	
-	private void initGrad() {
-		for(int l = 0; l < grad.length; l++) {
-			for(int i = 0; i < grad[l].length; i++) Arrays.fill(grad[l][i], 0);
+	private float[][] miniBatch(float[][] data, int start, int batchSize) {
+		float[][] miniBatch = new float[batchSize][data[0].length];
+		for(int i = 0; i < batchSize; i++) {
+			int index = (start + i) % data.length;
+			System.arraycopy(data[index], 0, miniBatch[i], 0, data[0].length);
 		}
+		
+		return miniBatch;
 	}
 	
 	public void train(float[][] data, float[][] teach, int epoch, float learnRate) {
-		int pattern = data.length;
-		
-		for(int e = 0; e < epoch; e++) {
-			for(int p = 0; p < pattern; p++) {
-				initGrad();
-				forward(data[p]);
-				backPropagate(teach[p]);
-				update(learnRate, 0);
-			}
-		}
+		train(data, teach, epoch, 1, learnRate, 0);
 	}
 	
 	public void train(float[][] data, float[][] teach, int epoch, int batchSize, float learnRate, float weightDecay) {
 		int pattern = data.length;
 		
-		for(int e = 0; e < epoch * pattern / batchSize; e++) {
-			initGrad();
-			for(int i = 0; i < batchSize; i++) {
-				int index = (e * batchSize + i) % pattern;
-				forward(data[index]);
-				backPropagate(teach[index]);
-			}
+		for(int e = 0; e < (epoch * pattern) / batchSize; e++) {
+			int index = (e * batchSize) % pattern;
+			float[][] batchData = miniBatch(data, index, batchSize);
+			float[][] batchTeach = miniBatch(teach, index, batchSize);
+			forward(batchData);
+			backPropagate(batchTeach);
 			update(learnRate, weightDecay);
 		}
 	}
 	
 	public void test(float[][] testData, int[] testLabel, PrintWriter pw) {
+		int batchSize = 500;	//メモリ容量次第
 		int pattern = testData.length;
-		int classN = unitN[layerN - 1];
-		float[][] testTarget = oneHotVector(testLabel, classN);
+		float[][] target = oneHotVector(testLabel, unitN[layerN - 1]);
 		float err = 0;
 		int acc = 0;
 		
-		for(int i = 0; i < pattern; i++) {
-			forward(testData[i]);
-			float[][] sub = LinearAlgebra.sub(LinearAlgebra.columnVector(testTarget[i]), unit[layerN - 1]);
-			err += LinearAlgebra.norm(LinearAlgebra.trans(sub)[0]);
-			if(testLabel[i] == getResult()) acc++;
+		for(int i = 0; i < pattern; i += batchSize) {
+			int size = Math.min(batchSize, pattern - i);
+			float[][] batchData = miniBatch(testData, i, size);
+			float[][] batchTarget = miniBatch(target, i, size);
+			
+			forward(batchData);
+			float[][] e = LinearAlgebra.trans(LinearAlgebra.sub(LinearAlgebra.trans(batchTarget), unit[layerN - 1]));
+			for(float[] f : e) err += LinearAlgebra.norm(f);
+			int[] res = getResult();
+			for(int j = 0; j < size; j++) if(res[j] == testLabel[i + j]) acc++;
 		}
-		
+
 		pw.printf("error: %.4f, accuracy: %.4f\n", err / pattern, (float) acc / pattern);
 	}
 	
-	public float[] output() {
-		return LinearAlgebra.trans(unit[layerN - 1])[0];
+	public float[][] output() {
+		return LinearAlgebra.trans(unit[layerN - 1]);
 	}
 	
-	public int getResult() {
-		float max = 0;
-		int idx = -1;
-		float out[] = output();
-		for(int i = 0; i < out.length; i++) {
-			if(out[i] > max) {
-				max = out[i];
-				idx = i;
+	public int[] getResult() {
+		float[][] out = output();
+		int dataN = out.length;
+		int[] results = new int[dataN];
+		
+		for(int d = 0; d < dataN; d++) {
+			float max = 0;
+			int index = -1;
+			
+			for(int i = 0; i < out[0].length; i++) {
+				if(out[d][i] > max) {
+					max = out[d][i];
+					index = i;
+				}
 			}
+			
+			results[d] = index;
 		}
 		
-		return idx;
+		return results;
 	}
 }
