@@ -135,13 +135,6 @@ public class Perceptron {
 		return y;
 	}
 	
-	//ウェイトからバイアス部分を取り除いたもの
-	private static float[][] removeBias(float[][] weight) {
-		float[][] f = new float[weight.length][weight[0].length - 1];
-		for(int i = 0; i < f.length; i++) System.arraycopy(weight[i], 0, f[i], 0, f[0].length);
-		return f;
-	}
-	
 	public void forward(float[][] x) {
 		int dataN = x.length;
 		
@@ -193,7 +186,7 @@ public class Perceptron {
 			for(int i = 0; i < unitN[l]; i++) {
 				for(int j = 0; j < dataN; j++) df[i][j] = dActivate.apply(unit[l][i][j]);
 			}
-			float[][] tW = LinearAlgebra.trans(removeBias(weight[l]));	//ウェイトからバイアスを除いた行列の転地
+			float[][] tW = LinearAlgebra.trans(LinearAlgebra.trimMatrix(weight[l], 0, 0, unitN[l + 1], unitN[l]));	//ウェイトからバイアスを除いた行列の転地
 			errSignal[l - 1] = LinearAlgebra.hadamard(LinearAlgebra.multi(tW, errSignal[l]), df);
 			grad[l - 1] = LinearAlgebra.multi(errSignal[l - 1], LinearAlgebra.trans(unit[l - 1]));
 		}

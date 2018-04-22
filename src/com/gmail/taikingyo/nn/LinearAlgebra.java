@@ -163,6 +163,14 @@ public class LinearAlgebra {
 		return trans(rowVector(vec));
 	}
 	
+	//トリミングした行列
+	public static float[][] trimMatrix(float[][] src, int y, int x, int rows, int columns) {
+		float[][] trim = new float[rows][columns];
+		for(int r = 0; r < rows; r++) System.arraycopy(src[y + r], x, trim[r], x, columns);
+		
+		return trim;
+	}
+	
 	public static void printMatrix(float[][] mat) {
 		int rows = mat.length;
 		int columns = mat[0].length;
